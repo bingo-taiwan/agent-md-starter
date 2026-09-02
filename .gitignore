@@ -1,0 +1,5 @@
+keys/*
+!keys/README.md
+.firecrawl/
+.venv/
+__pycache__/
