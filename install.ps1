@@ -1,6 +1,9 @@
 ﻿# 把 AGENTS.md 裝成三個 CLI 的全域指令，另裝 handoff 與「收工」skill、Claude hook、桌面捷徑。
 # 檔案為 UTF-8 with BOM，Windows PowerShell 5.1 才能正確讀中文。
-# 用法：powershell -ExecutionPolicy Bypass -File .\install.ps1
+# 用法：powershell -ExecutionPolicy Bypass -File .\install.ps1 [-SkipPermissions]
+#   -SkipPermissions：另建一個明確標示的捷徑，agent 以 --dangerously-skip-permissions 啟動（自動放行所有工具）。
+#   預設不建，一般捷徑啟動的 agent 會照常詢問權限。
+param([switch]$SkipPermissions)
 $src = Join-Path $PSScriptRoot 'AGENTS.md'
 $targets = @(
   (Join-Path $HOME '.claude\CLAUDE.md'),
@@ -32,11 +35,18 @@ Write-Host "installed -> $hookDir\handoff-loader.sh  (SessionStart hook 設定�
 
 # 桌面捷徑：雙擊 -> 交接檔選單 -> 進專案啟動 agy
 $desktop = [Environment]::GetFolderPath('Desktop')
-$lnk = Join-Path $desktop 'Agent Launcher.lnk'
 $ws = New-Object -ComObject WScript.Shell
-$sc = $ws.CreateShortcut($lnk)
-$sc.TargetPath = 'powershell.exe'
-$sc.Arguments = "-NoExit -ExecutionPolicy Bypass -File `"$(Join-Path $PSScriptRoot 'launch.ps1')`" -SkipPermissions"
-$sc.WorkingDirectory = $HOME
-$sc.Save()
-Write-Host "shortcut -> $lnk"
+$launch = Join-Path $PSScriptRoot 'launch.ps1'
+$shortcuts = @(@{ Name = 'Agent Launcher.lnk'; Args = "-NoExit -ExecutionPolicy Bypass -File `"$launch`"" })
+if ($SkipPermissions) {
+  $shortcuts += @{ Name = 'Agent Launcher (skip permissions).lnk'; Args = "-NoExit -ExecutionPolicy Bypass -File `"$launch`" -SkipPermissions" }
+}
+foreach ($s in $shortcuts) {
+  $lnk = Join-Path $desktop $s.Name
+  $sc = $ws.CreateShortcut($lnk)
+  $sc.TargetPath = 'powershell.exe'
+  $sc.Arguments = $s.Args
+  $sc.WorkingDirectory = $HOME
+  $sc.Save()
+  Write-Host "shortcut -> $lnk"
+}

@@ -38,7 +38,7 @@ agy / Gemini CLI / Copilot CLI 靠 AGENTS.md 裡「開工先讀 `docs/handoff.md
 ## 桌面捷徑與啟動選單
 
 `install.ps1` 會在桌面建「Agent Launcher」捷徑。雙擊 → 列出 `~Projects*docshandoff.md` 的專案（依 `updated` 排序，附「目前狀態」第一行）→ 輸入編號 → cd 進該專案啟動 agy。
-捷徑帶 `-SkipPermissions`（等同 `agy --dangerously-skip-permissions`）；不想自動放行就編輯捷徑拿掉它。
+預設捷徑啟動的 agent 會照常詢問權限。要自動放行（等同 `agy --dangerously-skip-permissions`）請用 `install.ps1 -SkipPermissions`，會另建一個標示「(skip permissions)」的捷徑，清楚知道自己在用哪個。
 手動：`powershell -ExecutionPolicy Bypass -File .aunch.ps1 -Agent claude`。
 
 `/收工` 是 `/handoff` 的中文別名，內容只在 `skills/handoff` 維護。
