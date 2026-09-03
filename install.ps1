@@ -1,6 +1,6 @@
-# Install AGENTS.md as user-level instructions for each CLI, plus the handoff skill and Claude hook.
-# ASCII only: .ps1 with CJK breaks the Windows PowerShell 5.1 parser.
-# Usage:  powershell -ExecutionPolicy Bypass -File .\install.ps1
+﻿# 把 AGENTS.md 裝成三個 CLI 的全域指令，另裝 handoff 與「收工」skill、Claude hook、桌面捷徑。
+# 檔案為 UTF-8 with BOM，Windows PowerShell 5.1 才能正確讀中文。
+# 用法：powershell -ExecutionPolicy Bypass -File .\install.ps1
 $src = Join-Path $PSScriptRoot 'AGENTS.md'
 $targets = @(
   (Join-Path $HOME '.claude\CLAUDE.md'),
@@ -14,16 +14,29 @@ foreach ($t in $targets) {
   Write-Host "installed -> $t"
 }
 
-# handoff skill: Claude Code reads ~/.claude/skills/<name>/SKILL.md, Antigravity CLI (agy) reads ~/.gemini/config/skills/<name>/SKILL.md
-$skillSrc = Join-Path $PSScriptRoot 'skills\handoff'
-foreach ($d in @((Join-Path $HOME '.claude\skills\handoff'), (Join-Path $HOME '.gemini\config\skills\handoff'))) {
-  New-Item -ItemType Directory -Force -Path $d | Out-Null
-  Copy-Item (Join-Path $skillSrc '*') $d -Recurse -Force
-  Write-Host "installed -> $d"
+# skills：Claude Code 讀 ~/.claude/skills/<name>/，Antigravity CLI (agy) 讀 ~/.gemini/config/skills/<name>/
+foreach ($skill in @('handoff', '收工')) {
+  $skillSrc = Join-Path $PSScriptRoot "skills\$skill"
+  foreach ($d in @((Join-Path $HOME ".claude\skills\$skill"), (Join-Path $HOME ".gemini\config\skills\$skill"))) {
+    New-Item -ItemType Directory -Force -Path $d | Out-Null
+    Copy-Item (Join-Path $skillSrc '*') $d -Recurse -Force
+    Write-Host "installed -> $d"
+  }
 }
 
-# Claude Code SessionStart hook (script only; merge hooks\claude-settings-snippet.json into ~/.claude/settings.json yourself)
+# Claude Code SessionStart hook（只放腳本；hooks\claude-settings-snippet.json 請自行合併進 ~/.claude/settings.json）
 $hookDir = Join-Path $HOME '.claude\hooks'
 New-Item -ItemType Directory -Force -Path $hookDir | Out-Null
 Copy-Item (Join-Path $PSScriptRoot 'hooks\handoff-loader.sh') $hookDir -Force
-Write-Host "installed -> $hookDir\handoff-loader.sh  (add SessionStart hook: see hooks\claude-settings-snippet.json)"
+Write-Host "installed -> $hookDir\handoff-loader.sh  (SessionStart hook 設定見 hooks\claude-settings-snippet.json)"
+
+# 桌面捷徑：雙擊 -> 交接檔選單 -> 進專案啟動 agy
+$desktop = [Environment]::GetFolderPath('Desktop')
+$lnk = Join-Path $desktop 'Agent Launcher.lnk'
+$ws = New-Object -ComObject WScript.Shell
+$sc = $ws.CreateShortcut($lnk)
+$sc.TargetPath = 'powershell.exe'
+$sc.Arguments = "-NoExit -ExecutionPolicy Bypass -File `"$(Join-Path $PSScriptRoot 'launch.ps1')`" -SkipPermissions"
+$sc.WorkingDirectory = $HOME
+$sc.Save()
+Write-Host "shortcut -> $lnk"

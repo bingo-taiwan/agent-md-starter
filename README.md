@@ -35,6 +35,14 @@ agy / Gemini CLI / Copilot CLI 靠 AGENTS.md 裡「開工先讀 `docs/handoff.md
 
 為什麼要標記制：交接檔寫「已修」，下一棒很容易直接當「已驗證」回報出去。`[宣稱✓·未複驗]` 讓檔案本身擋住這件事。
 
+## 桌面捷徑與啟動選單
+
+`install.ps1` 會在桌面建「Agent Launcher」捷徑。雙擊 → 列出 `~Projects*docshandoff.md` 的專案（依 `updated` 排序，附「目前狀態」第一行）→ 輸入編號 → cd 進該專案啟動 agy。
+捷徑帶 `-SkipPermissions`（等同 `agy --dangerously-skip-permissions`）；不想自動放行就編輯捷徑拿掉它。
+手動：`powershell -ExecutionPolicy Bypass -File .aunch.ps1 -Agent claude`。
+
+`/收工` 是 `/handoff` 的中文別名，內容只在 `skills/handoff` 維護。
+
 ## 改自己的
 
 只改 `AGENTS.md`，尤其最後的「個人化」段。`CLAUDE.md` / `GEMINI.md` 不用動，它們只是引入。
