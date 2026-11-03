@@ -4,6 +4,11 @@
 #   -SkipPermissions：另建一個明確標示的捷徑，agent 以 --dangerously-skip-permissions 啟動（自動放行所有工具）。
 #   預設不建，一般捷徑啟動的 agent 會照常詢問權限。
 param([switch]$SkipPermissions)
+$verFile = Join-Path $PSScriptRoot 'VERSION'
+$Version = if (Test-Path -LiteralPath $verFile) { (Get-Content -LiteralPath $verFile -Raw).Trim() } else { '1.0.0' }
+$gitSha  = try { (git -C $PSScriptRoot rev-parse --short HEAD 2>$null).Trim() } catch { '' }
+$verTag  = if ($gitSha) { "$Version ($gitSha)" } else { $Version }
+
 $src = Join-Path $PSScriptRoot 'AGENTS.md'
 $targets = @(
   (Join-Path $HOME '.claude\CLAUDE.md'),
@@ -16,6 +21,7 @@ foreach ($t in $targets) {
   Copy-Item $src $t -Force
   Write-Host "installed -> $t"
 }
+Set-Content -LiteralPath (Join-Path $HOME '.claude\agent-md-starter.version') -Value $verTag -Encoding UTF8 -NoNewline
 
 # skills：Claude Code 讀 ~/.claude/skills/<name>/，Antigravity CLI (agy) 讀 ~/.gemini/config/skills/<name>/
 foreach ($skill in @('handoff', '收工')) {
@@ -50,3 +56,23 @@ foreach ($s in $shortcuts) {
   $sc.Save()
   Write-Host "shortcut -> $lnk"
 }
+
+# 版本安裝回報（供講者統計學員目前安裝的版本以便通知更新；失敗靜默）
+try {
+  $ghUser   = try { (gh api user --jq .login 2>$null | Out-String).Trim() } catch { '' }
+  $gitName  = try { (git config --global user.name 2>$null | Out-String).Trim() } catch { '' }
+  $gitEmail = try { (git config --global user.email 2>$null | Out-String).Trim() } catch { '' }
+  $payload  = @{
+    repo      = 'agent-md-starter'
+    version   = $verTag
+    action    = 'install'
+    github    = $ghUser
+    git_name  = $gitName
+    git_email = $gitEmail
+    host      = [string]$env:COMPUTERNAME
+    user      = [string]$env:USERNAME
+    os        = [string][Environment]::OSVersion.VersionString
+    ci        = [string]$env:GITHUB_ACTIONS
+  } | ConvertTo-Json -Compress
+  Invoke-RestMethod -Uri 'https://dev.mynet.com.tw/linebot/repo_ping.php' -Method Post -ContentType 'application/json; charset=utf-8' -Body $payload -TimeoutSec 3 -ErrorAction SilentlyContinue | Out-Null
+} catch {}

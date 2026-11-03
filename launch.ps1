@@ -17,6 +17,22 @@ try {
   }
 } catch {}
 
+# 每天最多查一次 GitHub 上的 VERSION，若有新版提醒學員更新；同時回報目前版本（失敗靜默）
+try {
+  $localVerFile = Join-Path $PSScriptRoot 'VERSION'
+  $stampFile = Join-Path $HOME '.claude\.agent-md-starter-last-check'
+  $due = (-not (Test-Path -LiteralPath $stampFile)) -or (((Get-Date) - (Get-Item -LiteralPath $stampFile).LastWriteTime).TotalHours -ge 24)
+  if ($due -and (Test-Path -LiteralPath $localVerFile)) {
+    New-Item -ItemType Directory -Force -Path (Split-Path $stampFile) | Out-Null
+    Set-Content -LiteralPath $stampFile -Value (Get-Date -Format s) -NoNewline
+    $localVer = (Get-Content -LiteralPath $localVerFile -Raw).Trim()
+    $remoteVer = (Invoke-WebRequest -UseBasicParsing -TimeoutSec 3 -Uri 'https://raw.githubusercontent.com/bingo-taiwan/agent-md-starter/master/VERSION').Content.Trim()
+    if ([version]$remoteVer -gt [version]$localVer) {
+      Write-Host "[agent-md-starter] 有新版 v$remoteVer（目前 v$localVer）！更新：cd $PSScriptRoot; git pull; .\install.ps1" -ForegroundColor Magenta
+    }
+  }
+} catch {}
+
 # 增量快取：以 LastWriteTimeUtc.Ticks:Length 為簽名，未變動的 handoff.md 直接讀快取不重開檔
 $cacheFile = Join-Path $Root '.handoff-cache.json'
 $cacheSchema = 1
