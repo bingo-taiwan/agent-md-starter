@@ -9,15 +9,60 @@ param(
 )
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
+# 管理員身分警告：避免寫出 BUILTIN\Administrators + NULL SID DENY 的鎖死檔案，以及 agy -p 空輸出問題
+try {
+  $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+  if ($isAdmin) {
+    Write-Host '[!] 警告：目前在「系統管理員」終端機執行！這可能導致對話紀錄檔權限鎖死（Access denied）或 agy -p 空輸出。建議改用一般權限啟動。' -ForegroundColor Red
+  }
+} catch {}
+
+# 增量快取：以 LastWriteTimeUtc.Ticks:Length 為簽名，未變動的 handoff.md 直接讀快取不重開檔
+$cacheFile = Join-Path $Root '.handoff-cache.json'
+$cacheSchema = 1
+$cacheEntries = @{}
+if (Test-Path -LiteralPath $cacheFile) {
+  try {
+    $rawCache = Get-Content -LiteralPath $cacheFile -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+    if ($rawCache.schema_version -eq $cacheSchema -and $rawCache.entries) {
+      foreach ($p in $rawCache.entries.PSObject.Properties) { $cacheEntries[$p.Name] = $p.Value }
+    }
+  } catch {}
+}
+$newCache = @{}
+$cacheDirty = $false
+
 $items = @(Get-ChildItem -Path $Root -Directory -ErrorAction SilentlyContinue | ForEach-Object {
   $h = Join-Path $_.FullName 'docs\handoff.md'
-  if (Test-Path $h) {
-    $txt = Get-Content $h -Raw -Encoding UTF8
-    $updated = if ($txt -match '(?m)^updated:\s*(.+)$') { $Matches[1].Trim() } else { '' }
-    $status  = if ($txt -match '(?s)## 目前狀態\s*\n-\s*([^\n]+)') { $Matches[1].Trim() } else { '' }
+  $fi = Get-Item -LiteralPath $h -ErrorAction SilentlyContinue
+  if ($fi) {
+    $sig = "$($fi.LastWriteTimeUtc.Ticks):$($fi.Length)"
+    $ce = $cacheEntries[$h]
+    if ($ce -and ([string]$ce.sig -eq $sig)) {
+      $updated = [string]$ce.updated
+      $status  = [string]$ce.status
+    } else {
+      try {
+        $txt = Get-Content -LiteralPath $h -Raw -Encoding UTF8 -ErrorAction Stop
+        $updated = if ($txt -match '(?m)^updated:\s*(.+)$') { $Matches[1].Trim() } else { '' }
+        $status  = if ($txt -match '(?s)## 目前狀態\s*\r?\n-\s*([^\r\n]+)') { $Matches[1].Trim() } else { '' }
+        $cacheDirty = $true
+      } catch {
+        Write-Host "  [!] 無法讀取 $h（權限被鎖定）：$($_.Exception.Message)" -ForegroundColor Yellow
+        return
+      }
+    }
+    $newCache[$h] = @{ sig = $sig; updated = $updated; status = $status }
     [pscustomobject]@{ Name = $_.Name; Dir = $_.FullName; Updated = $updated; Status = $status }
   }
 } | Sort-Object Updated -Descending)
+
+if ($cacheDirty -or ($newCache.Count -ne $cacheEntries.Count)) {
+  try {
+    @{ schema_version = $cacheSchema; entries = $newCache } |
+      ConvertTo-Json -Depth 4 -Compress | Set-Content -LiteralPath $cacheFile -Encoding UTF8
+  } catch {}
+}
 
 Write-Host ''
 Write-Host "=== 專案交接檔（$Root）===" -ForegroundColor Cyan

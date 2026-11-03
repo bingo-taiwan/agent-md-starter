@@ -3,3 +3,4 @@ keys/*
 .firecrawl/
 .venv/
 __pycache__/
+.handoff-cache.json
