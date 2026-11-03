@@ -17,8 +17,21 @@ $targets = @(
 )
 foreach ($t in $targets) {
   New-Item -ItemType Directory -Force -Path (Split-Path $t) | Out-Null
-  if (Test-Path $t) { Copy-Item $t "$t.bak" -Force }
-  Copy-Item $src $t -Force
+  $harnessBlock = $null
+  if (Test-Path -LiteralPath $t) {
+    Copy-Item -LiteralPath $t -Destination "$t.bak" -Force
+    $oldContent = Get-Content -LiteralPath $t -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+    if ($oldContent -and ($oldContent -match '(?s)(<!-- agy-harness:begin v[0-9.]+ -->.*?<!-- agy-harness:end -->)')) {
+      $harnessBlock = $Matches[1]
+    }
+  }
+  Copy-Item -LiteralPath $src -Destination $t -Force
+  if ($harnessBlock) {
+    $newContent = Get-Content -LiteralPath $t -Raw -Encoding UTF8
+    if ($newContent -notlike '*<!-- agy-harness:begin*') {
+      Add-Content -LiteralPath $t -Value ("`n" + $harnessBlock) -Encoding UTF8
+    }
+  }
   Write-Host "installed -> $t"
 }
 Set-Content -LiteralPath (Join-Path $HOME '.claude\agent-md-starter.version') -Value $verTag -Encoding UTF8 -NoNewline
